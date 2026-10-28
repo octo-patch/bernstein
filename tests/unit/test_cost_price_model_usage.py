@@ -150,12 +150,17 @@ class TestPriceModelUsage:
 
     @pytest.mark.parametrize(
         ("model", "expected_cost"),
-        [("MiniMax-M3", 3.0), ("MiniMax-M2.7", 1.5), ("MiniMax-M2.5", 1.5)],
+        [("MiniMax-M3", 3.0), ("MiniMax-M2.7", 1.5)],
     )
     def test_minimax_existing_rates_are_preserved(self, model: str, expected_cost: float) -> None:
         result = price_model_usage(model, input_tokens=1_000_000, output_tokens=1_000_000)
         assert result.priced is True
         assert result.cost_usd == pytest.approx(expected_cost)
+
+    def test_minimax_m25_remains_explicitly_unpriced(self) -> None:
+        result = price_model_usage("MiniMax-M2.5", input_tokens=1_000_000, output_tokens=1_000_000)
+        assert result.priced is False
+        assert result.cost_usd == 0.0
 
     def test_every_pricing_table_entry_is_self_priceable(self) -> None:
         """Every key in the table must price itself as a positive number

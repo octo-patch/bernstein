@@ -37,6 +37,8 @@ def test_runner_prices_real_sdk_tool_roundtrip(
     """Keep explicit IDs, tools and history intact while metering Flash separately."""
     agents = pytest.importorskip("agents")
     openai = pytest.importorskip("openai")
+    if not hasattr(agents, "function_tool"):
+        pytest.skip("installed agents module is not a compatible openai-agents SDK")
     requests: list[dict[str, Any]] = []
     calls: list[str] = []
 
@@ -126,7 +128,33 @@ def test_runner_prices_real_sdk_tool_roundtrip(
     assert usage["priced"] is (model != "saved-custom-model")
 
 
-@pytest.mark.parametrize("origin", [None, "MiniMax-M3", "different-model"])
-def test_minimax_reasoning_from_another_model_is_not_replayed(origin: str | None) -> None:
+@pytest.mark.parametrize(
+    ("origin", "expected"),
+    [
+        ("MiniMax-M3.1-Flash", True),
+        (None, False),
+        ("MiniMax-M3", False),
+        ("different-model", False),
+    ],
+)
+def test_minimax_reasoning_replays_only_for_same_model(origin: str | None, expected: bool) -> None:
     context = SimpleNamespace(model="MiniMax-M3.1-Flash", reasoning=SimpleNamespace(origin_model=origin))
-    assert runner._should_replay_minimax_reasoning(context) is False
+    assert runner._should_replay_minimax_reasoning(context) is expected
+
+
+def test_minimax_replay_requires_sdk_hook() -> None:
+    class LegacyModel:
+        def __init__(self, model: str, openai_client: Any) -> None:
+            pass
+
+    class ReplayModel:
+        def __init__(
+            self,
+            model: str,
+            openai_client: Any,
+            should_replay_reasoning_content: Any = None,
+        ) -> None:
+            pass
+
+    assert runner._supports_reasoning_content_replay(LegacyModel) is False
+    assert runner._supports_reasoning_content_replay(ReplayModel) is True
